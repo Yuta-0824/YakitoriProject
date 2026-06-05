@@ -72,30 +72,31 @@ public class YakitoriManager : MonoBehaviour
 
     void SpawnYakitori()
     {
-        // --- 修正ポイント：リストの中にある「消え損ねたnullデータ」をお掃除する ---
-        activeYakitoris.RemoveAll(item => item == null);
+        // --- この1行が抜けていませんか？ ---
+        // 現在リストに何本あるかを数えて、次に出す場所（番号）を決める
+        int nextPos = activeYakitoris.Count;
 
-        if (activeYakitoris.Count >= spawnPoints.Length)
+        if (nextPos >= spawnPoints.Length)
         {
-            Debug.LogWarning($"焼き場がいっぱいです！(現在のリスト数: {activeYakitoris.Count})");
+            Debug.LogWarning("焼き場がいっぱいです！");
             return;
         }
 
-        // 生成
-        int nextPos = activeYakitoris.Count;
+        // 生成処理
         GameObject newYaki = Instantiate(yakitoriPrefab, spawnPoints[nextPos].position, spawnPoints[nextPos].rotation);
-        newYaki.name = "Yakitori_" + System.Guid.NewGuid().ToString().Substring(0, 4); // 名前をユニークにする
-        activeYakitoris.Add(newYaki);
 
-        // UIなどの紐付け
+        // 生成した「この一本(newYaki)」の中にあるUIを探して、Coreをセットする
         CookingCore newCore = newYaki.GetComponent<CookingCore>();
-        YakitoriUI ui = FindObjectOfType<YakitoriUI>();
-        if (ui != null) ui.core = newCore;
+        YakitoriUI ui = newYaki.GetComponentInChildren<YakitoriUI>();
 
-        // 選択状態の更新
+        if (ui != null && newCore != null)
+        {
+            ui.core = newCore;
+        }
+
+        activeYakitoris.Add(newYaki);
         RefreshSelection();
     }
-
     void CollectYakitori()
     {
         if (activeYakitoris.Count == 0) return;

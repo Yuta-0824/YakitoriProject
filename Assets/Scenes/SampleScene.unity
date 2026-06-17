@@ -1548,9 +1548,8 @@ MonoBehaviour:
   - {fileID: 1096269325}
   - {fileID: 1309158800}
   timerText: {fileID: 138512886}
-  timeRemaining: 60
+  timeRemaining: 240
   inputCooldown: 0.5
-  activeYakitoris: []
 --- !u!4 &2121226805
 Transform:
   m_ObjectHideFlags: 0

@@ -7,24 +7,23 @@ public class YakitoriManager : MonoBehaviour
 {
     [Header("焼き鳥の設定")]
     public GameObject yakitoriPrefab;
-    public Transform[] spawnPoints;
+    public Transform[] spawnPoints; // ヒエラルキーのPos1, Pos2, Pos3を登録
 
     [Header("UI参照")]
     public TextMeshProUGUI timerText;
 
     [Header("ゲーム設定")]
     public float timeRemaining = 60f;
-    public float inputCooldown = 0.3f;
+    public float inputCooldown = 0.3f; // 連打防止時間
 
     // 現在場にある焼き鳥を管理するリスト
-    public List<GameObject> activeYakitoris = new List<GameObject>();
+    private List<GameObject> activeYakitoris = new List<GameObject>();
     private int selectedIndex = 0;
     private float lastInputTime = 0f;
     private bool isGameActive = true;
 
     void Start()
     {
-        // --- 修正ポイント：開始時にリストを完全に空にする ---
         activeYakitoris.Clear();
         selectedIndex = 0;
     }
@@ -33,91 +32,83 @@ public class YakitoriManager : MonoBehaviour
     {
         if (!isGameActive) return;
 
+        // --- タイマー処理 ---
         if (timeRemaining > 0)
         {
             timeRemaining -= Time.deltaTime;
             if (timerText != null) timerText.text = $"TIME: {timeRemaining:F0}";
         }
-        else { FinishGame(); }
+        else
+        {
+            FinishGame();
+        }
 
+        // --- 入力クールタイムチェック ---
         if (Time.time - lastInputTime < inputCooldown) return;
 
         HandleInputs();
-
-        // 【デバッグ】現在のリストの状態をインスペクター以外でも確認できるようにする（Lキー）
-        if (Input.GetKeyDown(KeyCode.L))
-        {
-            Debug.Log($"現在リストに登録されている本数: {activeYakitoris.Count}");
-            for (int i = 0; i < activeYakitoris.Count; i++)
-            {
-                Debug.Log($"インデックス {i}: {activeYakitoris[i]?.name}");
-            }
-        }
     }
 
     void HandleInputs()
     {
-        if (JoyconInput.Instance == null) return;
-
-        // 選択切り替え
+        // 1. 選択切り替え (左右キー / ジョイコン左右ボタン)
         if (GetLeftInput()) { ChangeSelection(-1); lastInputTime = Time.time; }
         if (GetRightInput()) { ChangeSelection(1); lastInputTime = Time.time; }
 
-        // 増やす
+        // 2. 焼き鳥を増やす (Xキー / ジョイコン上ボタン)
         if (GetUpInput()) { SpawnYakitori(); lastInputTime = Time.time; }
 
-        // 回収
+        // 3. 焼き鳥を回収 (Bキー / ジョイコン下ボタン)
         if (GetDownInput()) { CollectYakitori(); lastInputTime = Time.time; }
     }
 
     void SpawnYakitori()
     {
-        // --- この1行が抜けていませんか？ ---
-        // 現在リストに何本あるかを数えて、次に出す場所（番号）を決める
-        int nextPos = activeYakitoris.Count;
+        // リスト内の空データを掃除
+        activeYakitoris.RemoveAll(item => item == null);
 
-        if (nextPos >= spawnPoints.Length)
+        if (activeYakitoris.Count >= spawnPoints.Length)
         {
             Debug.LogWarning("焼き場がいっぱいです！");
             return;
         }
 
-        // 生成処理
+        // 空いているスロット（リストの末尾）に生成
+        int nextPos = activeYakitoris.Count;
         GameObject newYaki = Instantiate(yakitoriPrefab, spawnPoints[nextPos].position, spawnPoints[nextPos].rotation);
+        activeYakitoris.Add(newYaki);
 
-        // 生成した「この一本(newYaki)」の中にあるUIを探して、Coreをセットする
+        // 生成した個体の中にあるUIに、その個体のCoreを紐付ける
         CookingCore newCore = newYaki.GetComponent<CookingCore>();
         YakitoriUI ui = newYaki.GetComponentInChildren<YakitoriUI>();
+        if (ui != null) ui.core = newCore;
 
-        if (ui != null && newCore != null)
-        {
-            ui.core = newCore;
-        }
-
-        activeYakitoris.Add(newYaki);
+        // 全体の選択状態（黄色ハイライト等）を更新
         RefreshSelection();
     }
+
     void CollectYakitori()
     {
         if (activeYakitoris.Count == 0) return;
 
-        // nullチェックを入れて安全に削除
-        if (activeYakitoris[selectedIndex] != null)
+        GameObject target = activeYakitoris[selectedIndex];
+        if (target != null)
         {
-            GameObject target = activeYakitoris[selectedIndex];
             CookingCore core = target.GetComponent<CookingCore>();
             if (core != null)
             {
-                float avg = core.GetTotalProgress();
-                ScoreManager.Instance.AddScore(CalculatePoints(avg, core.omoteProgress, core.uraProgress));
-                Judge(avg);
+                // スコア計算と評価（表・裏の値を個別に渡す）
+                int points = CalculatePoints(core.omoteProgress, core.uraProgress);
+                if (ScoreManager.Instance != null) ScoreManager.Instance.AddScore(points);
+
+                Judge(core.omoteProgress, core.uraProgress);
             }
-            Destroy(target); // 物体を消す
+            Destroy(target);
         }
 
-        activeYakitoris.RemoveAt(selectedIndex); // リストの名簿から消す
+        activeYakitoris.RemoveAt(selectedIndex);
 
-        // インデックスがはみ出さないように調整
+        // 選択インデックスがはみ出さないよう調整
         if (selectedIndex >= activeYakitoris.Count)
         {
             selectedIndex = Mathf.Max(0, activeYakitoris.Count - 1);
@@ -126,7 +117,6 @@ public class YakitoriManager : MonoBehaviour
         RefreshSelection();
     }
 
-    // 全体の選択状態を一括で更新する
     void RefreshSelection()
     {
         for (int i = 0; i < activeYakitoris.Count; i++)
@@ -134,9 +124,11 @@ public class YakitoriManager : MonoBehaviour
             if (activeYakitoris[i] == null) continue;
             bool isSelected = (i == selectedIndex);
 
+            // 各スクリプトに操作権限を伝える
             if (activeYakitoris[i].TryGetComponent(out SkewerRotation rot)) rot.isSelected = isSelected;
             if (activeYakitoris[i].TryGetComponent(out YakitoriController move)) move.isSelected = isSelected;
 
+            // UIのハイライト（矢印や文字サイズ）を更新
             YakitoriUI ui = activeYakitoris[i].GetComponentInChildren<YakitoriUI>();
             if (ui != null) ui.SetHighlight(isSelected);
         }
@@ -149,14 +141,57 @@ public class YakitoriManager : MonoBehaviour
         RefreshSelection();
     }
 
-    // --- 入力判定のラップ（読みやすくするため） ---
-    bool GetLeftInput() => Input.GetKeyDown(KeyCode.LeftArrow) || (JoyconInput.Instance.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_LEFT) ?? false);
-    bool GetRightInput() => Input.GetKeyDown(KeyCode.RightArrow) || (JoyconInput.Instance.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_RIGHT) ?? false);
-    bool GetUpInput() => Input.GetKeyDown(KeyCode.X) || (JoyconInput.Instance.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_UP) ?? false);
-    bool GetDownInput() => Input.GetKeyDown(KeyCode.B) || (JoyconInput.Instance.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_DOWN) ?? false);
+    // --- 焼き加減の精密判定ロジック ---
+    int CalculatePoints(float omote, float ura)
+    {
+        // 1. 【焦げ】どちらか片面でも150%以上
+        if (omote >= 150f || ura >= 150f) return 100;
 
-    // --- 以下、計算・評価・終了処理は以前と同じ ---
-    int CalculatePoints(float avg, float omote, float ura) { if (Mathf.Approximately(avg, 100f)) return 2000; if (avg > 80 && avg < 110) return 1000; return (avg >= 110) ? 100 : 50; }
-    void Judge(float score) { string msg = score > 80 && score < 110 ? "最高！" : (score >= 110 ? "焦げた！" : "生だよ！"); Color col = score > 80 && score < 110 ? Color.yellow : (score >= 110 ? Color.red : Color.cyan); EvaluationUI.Instance.ShowEvaluation(msg, col); }
-    void FinishGame() { isGameActive = false; ScoreManager.Instance.SaveFinalScore(); SceneManager.LoadScene("ResultScene"); }
+        // 2. 【最高】両面が80%以上
+        if (omote >= 80f && ura >= 80f)
+        {
+            // 両面とも100%に極めて近い（誤差5%以内）ならボーナス
+            if (Mathf.Abs(omote - 100f) < 5f && Mathf.Abs(ura - 100f) < 5f) return 2000;
+            return 1000;
+        }
+
+        // 3. 【生】それ以外
+        return 50;
+    }
+
+    // --- 評価メッセージ判定 ---
+    void Judge(float omote, float ura)
+    {
+        string msg = "";
+        Color col = Color.white;
+
+        if (omote >= 150f || ura >= 150f)
+        {
+            msg = "焦げすぎだ！！"; col = Color.red;
+        }
+        else if (omote >= 80f && ura >= 80f)
+        {
+            msg = "最高！おいしそう！"; col = new Color(1.0f, 0.5f, 0.0f); // オレンジ
+        }
+        else
+        {
+            msg = "まだ生だよ！"; col = Color.cyan;
+        }
+
+        if (EvaluationUI.Instance != null)
+            EvaluationUI.Instance.ShowEvaluation(msg, col);
+    }
+
+    void FinishGame()
+    {
+        isGameActive = false;
+        if (ScoreManager.Instance != null) ScoreManager.Instance.SaveFinalScore();
+        SceneManager.LoadScene("ResultScene");
+    }
+
+    // --- 入力ラップ (キーボード + ジョイコン) ---
+    bool GetLeftInput() => Input.GetKeyDown(KeyCode.LeftArrow) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_LEFT) ?? false);
+    bool GetRightInput() => Input.GetKeyDown(KeyCode.RightArrow) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_RIGHT) ?? false);
+    bool GetUpInput() => Input.GetKeyDown(KeyCode.X) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_UP) ?? false);
+    bool GetDownInput() => Input.GetKeyDown(KeyCode.B) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_DOWN) ?? false);
 }

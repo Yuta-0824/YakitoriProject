@@ -18,14 +18,41 @@ public class CookingCore : MonoBehaviour
     {
         if (isOverFire && currentFireTransform != null)
         {
-            UpdateCookingWithDistance();
-        }
-        else
-        {
-            currentDistanceFactor = 0f;
+            // 1. まず距離による火力（0～1.0）を計算
+            float distance = Vector3.Distance(transform.position, currentFireTransform.position);
+            currentDistanceFactor = Mathf.InverseLerp(maxHeatDistance, 0f, distance);
+
+            // 2. 自動焼きの処理
+            if (UpgradeManager.Instance != null && UpgradeManager.Instance.isAutoCookOn)
+            {
+                // --- 修正ポイント：倍率を 1.0f にして手動と同じ速度にする ---
+                float autoSpeed = baseCookSpeed * currentDistanceFactor;
+
+                // 表と裏を「同時」に同じ速度で焼く
+                omoteProgress += autoSpeed * Time.deltaTime;
+                uraProgress += autoSpeed * Time.deltaTime;
+            }
+            else
+            {
+                // 自動焼きを持っていない場合は、これまでの「ひねり（Dot）」で焼く
+                UpdateManualCooking();
+            }
+
+            // 数値制限
+            omoteProgress = Mathf.Clamp(omoteProgress, 0, 200);
+            uraProgress = Mathf.Clamp(uraProgress, 0, 200);
         }
     }
 
+    // 以前のひねり判定を別関数にまとめておくとスッキリします
+    void UpdateManualCooking()
+    {
+        float dot = Vector3.Dot(transform.up, Vector3.up);
+        float finalSpeed = baseCookSpeed * currentDistanceFactor;
+
+        if (dot > 0.1f) uraProgress += finalSpeed * Time.deltaTime;
+        else if (dot < -0.1f) omoteProgress += finalSpeed * Time.deltaTime;
+    }
     void UpdateCookingWithDistance()
     {
         // 1. 火の中心と肉の「3次元的な距離」を計算

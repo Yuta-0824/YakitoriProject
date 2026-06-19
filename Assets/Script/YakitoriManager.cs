@@ -7,191 +7,200 @@ public class YakitoriManager : MonoBehaviour
 {
     [Header("焼き鳥の設定")]
     public GameObject yakitoriPrefab;
-    public Transform[] spawnPoints; // ヒエラルキーのPos1, Pos2, Pos3を登録
+    public Transform[] spawnPoints;
 
     [Header("UI参照")]
     public TextMeshProUGUI timerText;
 
     [Header("ゲーム設定")]
     public float timeRemaining = 60f;
-    public float inputCooldown = 0.3f; // 連打防止時間
+    public float inputCooldown = 0.3f;
 
-    // 現在場にある焼き鳥を管理するリスト
-    private List<GameObject> activeYakitoris = new List<GameObject>();
+    // --- 修正ポイント：List を 固定配列(Array) に変更 ---
+    // これにより [0][1][2] という「場所」を固定できます
+    private GameObject[] activeYakitoris;
     private int selectedIndex = 0;
     private float lastInputTime = 0f;
     private bool isGameActive = true;
 
     void Start()
     {
-        activeYakitoris.Clear();
-        selectedIndex = 0;
+        // スロットの数（Posの数）だけ席を用意する
+        activeYakitoris = new GameObject[spawnPoints.Length];
     }
 
     void Update()
     {
+        if (Time.timeScale == 0) return; // 一時停止中は動かさない
         if (!isGameActive) return;
 
-        // --- タイマー処理 ---
+        // タイマー処理
         if (timeRemaining > 0)
         {
             timeRemaining -= Time.deltaTime;
             if (timerText != null) timerText.text = $"TIME: {timeRemaining:F0}";
         }
-        else
-        {
-            FinishGame();
-        }
+        else { FinishGame(); }
 
-        // --- 入力クールタイムチェック ---
         if (Time.time - lastInputTime < inputCooldown) return;
 
         HandleInputs();
+
+        // --- 追加：自動回収のチェック ---
+        if (UpgradeManager.Instance != null && UpgradeManager.Instance.isAutoCollectOn)
+        {
+            CheckAutoCollect();
+        }
+        void CheckAutoCollect()
+        {
+            // 配置されている全スロットを確認
+            for (int i = 0; i < activeYakitoris.Length; i++)
+            {
+                if (activeYakitoris[i] == null) continue;
+
+                CookingCore core = activeYakitoris[i].GetComponent<CookingCore>();
+
+                // 【条件】表も裏も100%を超えたら
+                if (core.omoteProgress >= 100f && core.uraProgress >= 100f)
+                {
+                    Debug.Log($"<color=cyan>スロット {i} を自動回収します！</color>");
+
+                    // そのスロットを回収する
+                    AutoCollectAt(i);
+                }
+            }
+        }
+    }
+
+    // 指定した番号の焼き鳥を回収する専用の関数
+    void AutoCollectAt(int index)
+    {
+        GameObject target = activeYakitoris[index];
+        CookingCore core = target.GetComponent<CookingCore>();
+
+        // スコアと報酬の加算
+        int points = CalculatePoints(core.omoteProgress, core.uraProgress);
+        ScoreManager.Instance.AddScore(points);
+
+        // 100円報酬（最高判定なら）
+        if (core.omoteProgress >= 80f && core.uraProgress >= 80f && core.omoteProgress < 150f && core.uraProgress < 150f)
+        {
+            MoneyManager.Instance.AddMoney(100);
+        }
+
+        Judge(core.omoteProgress, core.uraProgress);
+
+        // 削除
+        Destroy(target);
+        activeYakitoris[index] = null;
+
+        RefreshSelection();
     }
 
     void HandleInputs()
     {
-        // 1. 選択切り替え (左右キー / ジョイコン左右ボタン)
+        // 選択切り替え
         if (GetLeftInput()) { ChangeSelection(-1); lastInputTime = Time.time; }
         if (GetRightInput()) { ChangeSelection(1); lastInputTime = Time.time; }
 
-        // 2. 焼き鳥を増やす (Xキー / ジョイコン上ボタン)
+        // 増やす
         if (GetUpInput()) { SpawnYakitori(); lastInputTime = Time.time; }
 
-        // 3. 焼き鳥を回収 (Bキー / ジョイコン下ボタン)
+        // 回収
         if (GetDownInput()) { CollectYakitori(); lastInputTime = Time.time; }
     }
 
     void SpawnYakitori()
     {
-        // リスト内の空データを掃除
-        activeYakitoris.RemoveAll(item => item == null);
-
-        if (activeYakitoris.Count >= spawnPoints.Length)
+        // --- 修正ポイント：左から順に「空いている席」を探す ---
+        int emptyIndex = -1;
+        for (int i = 0; i < activeYakitoris.Length; i++)
         {
-            Debug.LogWarning("焼き場がいっぱいです！");
+            if (activeYakitoris[i] == null) // もしここが空なら
+            {
+                emptyIndex = i;
+                break; // 最初に見つけた空き場所で決定
+            }
+        }
+
+        if (emptyIndex == -1)
+        {
+            Debug.LogWarning("すべての焼き場が埋まっています！");
             return;
         }
 
-        // 空いているスロット（リストの末尾）に生成
-        int nextPos = activeYakitoris.Count;
-        GameObject newYaki = Instantiate(yakitoriPrefab, spawnPoints[nextPos].position, spawnPoints[nextPos].rotation);
-        activeYakitoris.Add(newYaki);
+        // 見つけた空き場所（emptyIndex）に生成
+        GameObject newYaki = Instantiate(yakitoriPrefab, spawnPoints[emptyIndex].position, spawnPoints[emptyIndex].rotation);
+        activeYakitoris[emptyIndex] = newYaki;
 
-        // 生成した個体の中にあるUIに、その個体のCoreを紐付ける
+        // 生成したものを今の操作対象にする
+        selectedIndex = emptyIndex;
+
+        // UIの紐付け
         CookingCore newCore = newYaki.GetComponent<CookingCore>();
         YakitoriUI ui = newYaki.GetComponentInChildren<YakitoriUI>();
         if (ui != null) ui.core = newCore;
 
-        // 全体の選択状態（黄色ハイライト等）を更新
         RefreshSelection();
     }
 
     void CollectYakitori()
     {
-        if (activeYakitoris.Count == 0) return;
+        // 今選んでいるスロットが空なら何もしない
+        if (activeYakitoris[selectedIndex] == null) return;
 
         GameObject target = activeYakitoris[selectedIndex];
-        if (target != null)
+        CookingCore core = target.GetComponent<CookingCore>();
+        if (core != null)
         {
-            CookingCore core = target.GetComponent<CookingCore>();
-            if (core != null)
+            ScoreManager.Instance.AddScore(CalculatePoints(core.omoteProgress, core.uraProgress));
+            Judge(core.omoteProgress, core.uraProgress);
+
+            // --- 修正ポイント：最高判定なら100円加算 ---
+            if (core.omoteProgress >= 80f && core.uraProgress >= 80f && core.omoteProgress < 150f && core.uraProgress < 150f)
             {
-                // スコア計算と評価（表・裏の値を個別に渡す）
-                int points = CalculatePoints(core.omoteProgress, core.uraProgress);
-                if (ScoreManager.Instance != null) ScoreManager.Instance.AddScore(points);
-
-                Judge(core.omoteProgress, core.uraProgress);
+                MoneyManager.Instance.AddMoney(100);
+                Debug.Log("<color=yellow>報酬100円ゲット！</color>");
             }
-            Destroy(target);
+
         }
 
-        activeYakitoris.RemoveAt(selectedIndex);
+        Destroy(target);
+        activeYakitoris[selectedIndex] = null; // スロットを空にする
 
-        // 選択インデックスがはみ出さないよう調整
-        if (selectedIndex >= activeYakitoris.Count)
-        {
-            selectedIndex = Mathf.Max(0, activeYakitoris.Count - 1);
-        }
+        RefreshSelection();
+    }
 
+    void ChangeSelection(int direction)
+    {
+        // スロットを移動する（空き場所であっても移動できるようにするのが一番バグが少ないです）
+        selectedIndex = (selectedIndex + direction + activeYakitoris.Length) % activeYakitoris.Length;
         RefreshSelection();
     }
 
     void RefreshSelection()
     {
-        for (int i = 0; i < activeYakitoris.Count; i++)
+        for (int i = 0; i < activeYakitoris.Length; i++)
         {
             if (activeYakitoris[i] == null) continue;
+
             bool isSelected = (i == selectedIndex);
 
-            // 各スクリプトに操作権限を伝える
             if (activeYakitoris[i].TryGetComponent(out SkewerRotation rot)) rot.isSelected = isSelected;
             if (activeYakitoris[i].TryGetComponent(out YakitoriController move)) move.isSelected = isSelected;
 
-            // UIのハイライト（矢印や文字サイズ）を更新
             YakitoriUI ui = activeYakitoris[i].GetComponentInChildren<YakitoriUI>();
             if (ui != null) ui.SetHighlight(isSelected);
+
         }
     }
 
-    void ChangeSelection(int direction)
-    {
-        if (activeYakitoris.Count <= 1) return;
-        selectedIndex = (selectedIndex + direction + activeYakitoris.Count) % activeYakitoris.Count;
-        RefreshSelection();
-    }
-
-    // --- 焼き加減の精密判定ロジック ---
-    int CalculatePoints(float omote, float ura)
-    {
-        // 1. 【焦げ】どちらか片面でも150%以上
-        if (omote >= 150f || ura >= 150f) return 100;
-
-        // 2. 【最高】両面が80%以上
-        if (omote >= 80f && ura >= 80f)
-        {
-            // 両面とも100%に極めて近い（誤差5%以内）ならボーナス
-            if (Mathf.Abs(omote - 100f) < 5f && Mathf.Abs(ura - 100f) < 5f) return 2000;
-            return 1000;
-        }
-
-        // 3. 【生】それ以外
-        return 50;
-    }
-
-    // --- 評価メッセージ判定 ---
-    void Judge(float omote, float ura)
-    {
-        string msg = "";
-        Color col = Color.white;
-
-        if (omote >= 150f || ura >= 150f)
-        {
-            msg = "焦げすぎだ！！"; col = Color.red;
-        }
-        else if (omote >= 80f && ura >= 80f)
-        {
-            msg = "最高！おいしそう！"; col = new Color(1.0f, 0.5f, 0.0f); // オレンジ
-        }
-        else
-        {
-            msg = "まだ生だよ！"; col = Color.cyan;
-        }
-
-        if (EvaluationUI.Instance != null)
-            EvaluationUI.Instance.ShowEvaluation(msg, col);
-    }
-
-    void FinishGame()
-    {
-        isGameActive = false;
-        if (ScoreManager.Instance != null) ScoreManager.Instance.SaveFinalScore();
-        SceneManager.LoadScene("ResultScene");
-    }
-
-    // --- 入力ラップ (キーボード + ジョイコン) ---
+    // --- 入力判定・計算ロジックなどは以前と同じなので省略 ---
     bool GetLeftInput() => Input.GetKeyDown(KeyCode.LeftArrow) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_LEFT) ?? false);
     bool GetRightInput() => Input.GetKeyDown(KeyCode.RightArrow) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_RIGHT) ?? false);
     bool GetUpInput() => Input.GetKeyDown(KeyCode.X) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_UP) ?? false);
     bool GetDownInput() => Input.GetKeyDown(KeyCode.B) || (JoyconInput.Instance?.rightJoycon?.GetButtonDown(Joycon.Button.DPAD_DOWN) ?? false);
+    int CalculatePoints(float omote, float ura) { if (omote >= 150f || ura >= 150f) return 100; if (omote >= 80f && ura >= 80f) { if (Mathf.Abs(omote - 100f) < 5f && Mathf.Abs(ura - 100f) < 5f) return 2000; return 1000; } return 50; }
+    void Judge(float omote, float ura) { string msg = (omote >= 150f || ura >= 150f) ? "焦げた！" : (omote >= 80f && ura >= 80f) ? "最高！" : "まだ生！"; Color col = (msg == "最高！") ? Color.blue : (msg == "焦げた！") ? Color.red : Color.cyan; EvaluationUI.Instance.ShowEvaluation(msg, col); }
+    void FinishGame() { isGameActive = false; if (ScoreManager.Instance != null) ScoreManager.Instance.SaveFinalScore(); SceneManager.LoadScene("ResultScene"); }
 }

@@ -320,7 +320,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   flipThreshold: 90
-  flipSpeed: 15
+  flipSpeed: 10
   debugFlipKey: 32
   isSelected: 0
 --- !u!114 &6166044512225872226
@@ -339,7 +339,7 @@ MonoBehaviour:
   uraProgress: 0
   baseCookSpeed: 25
   isOverFire: 0
-  maxHeatDistance: 7
+  maxHeatDistance: 10
   currentDistanceFactor: 0
 --- !u!54 &6166044512225872225
 Rigidbody:

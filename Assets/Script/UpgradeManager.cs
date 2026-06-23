@@ -1,49 +1,67 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UI; // ボタンの制御に必要
 
 public class UpgradeManager : MonoBehaviour
 {
     public static UpgradeManager Instance;
 
-    // アップグレード状態（これも保存する）
+    [Header("アップグレード状態")]
     public bool isAutoCookOn = false;
-    public int autoCookCost = 0;
-    public bool isAutoCollectOn = false; // 自動回収フラグ
-    public int autoCollectCost = 0;   // 自動回収の価格（高めに設定）
+    public bool isAutoCollectOn = false;
+
+    [Header("コスト設定")]
+    public int autoCookCost = 500;
+    public int autoCollectCost = 1000;
+
+    [Header("UIボタン参照")]
+    public Button autoCookButton;
+    public Button autoCollectButton;
 
     void Awake()
     {
-        Instance = this;
-        // 以前買ったか確認
-        isAutoCookOn = (PlayerPrefs.GetInt("Upgrade_AutoCook", 0) == 1);
-        isAutoCollectOn = (PlayerPrefs.GetInt("Upgrade_AutoCollect", 0) == 1);
+        // シングルトンの設定
+        if (Instance == null) Instance = this;
+
+        // --- 修正ポイント：保存データを読み込まず、必ず false で開始する ---
+        ResetUpgrades();
     }
 
-    // ボタンから呼ぶ購入関数
+    // アップグレードを初期状態に戻す
+    public void ResetUpgrades()
+    {
+        isAutoCookOn = false;
+        isAutoCollectOn = false;
+
+        // ボタンを再び押せるようにする
+        if (autoCookButton != null) autoCookButton.interactable = true;
+        if (autoCollectButton != null) autoCollectButton.interactable = true;
+
+        Debug.Log("アップグレードをリセットしました");
+    }
+
     public void BuyAutoCook()
     {
-        if (isAutoCookOn) return; // 既に持っている
+        if (isAutoCookOn) return;
 
-        if (MoneyManager.Instance.UseMoney(autoCookCost))
+        if (MoneyManager.Instance != null && MoneyManager.Instance.UseMoney(autoCookCost))
         {
             isAutoCookOn = true;
-            PlayerPrefs.SetInt("Upgrade_AutoCook", 1);
-            PlayerPrefs.Save();
-            Debug.Log("自動焼き器を購入しました！");
-            autoCookButton.interactable = false; // ボタンをグレーアウト
+            if (autoCookButton != null) autoCookButton.interactable = false; // そのプレイ中だけ売り切れ
+            Debug.Log("自動焼き器を購入！(このプレイ中のみ有効)");
+            // PlayerPrefs.SetInt... の行は削除
         }
     }
+
     public void BuyAutoCollect()
     {
         if (isAutoCollectOn) return;
 
-        if (MoneyManager.Instance.UseMoney(autoCollectCost))
+        if (MoneyManager.Instance != null && MoneyManager.Instance.UseMoney(autoCollectCost))
         {
             isAutoCollectOn = true;
-            PlayerPrefs.SetInt("Upgrade_AutoCollect", 1);
-            PlayerPrefs.Save();
-            Debug.Log("自動回収機を購入しました！");
+            if (autoCollectButton != null) autoCollectButton.interactable = false; // そのプレイ中だけ売り切れ
+            Debug.Log("自動回収機を購入！(このプレイ中のみ有効)");
+            // PlayerPrefs.SetInt... の行は削除
         }
     }
-    public Button autoCookButton; // インスペクターでボタンを登録
 }

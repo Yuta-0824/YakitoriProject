@@ -25,6 +25,10 @@ public class YakitoriManager : MonoBehaviour
 
     void Start()
     {
+        if (UpgradeManager.Instance != null)
+        {
+            UpgradeManager.Instance.ResetUpgrades();
+        }
         // スロットの数（Posの数）だけ席を用意する
         activeYakitoris = new GameObject[spawnPoints.Length];
     }

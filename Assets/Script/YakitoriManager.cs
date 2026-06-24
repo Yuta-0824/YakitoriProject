@@ -18,7 +18,7 @@ public class YakitoriManager : MonoBehaviour
 
     // --- 修正ポイント：List を 固定配列(Array) に変更 ---
     // これにより [0][1][2] という「場所」を固定できます
-    private GameObject[] activeYakitoris;
+    public GameObject[] activeYakitoris;
     private int selectedIndex = 0;
     private float lastInputTime = 0f;
     private bool isGameActive = true;

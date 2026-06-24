@@ -2896,6 +2896,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: de920c038122afc4794e7e37bcd8607c, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 9c2c2661264921e4db19a6a943afdab8, type: 2}
     - target: {fileID: 919132149155446097, guid: de920c038122afc4794e7e37bcd8607c, type: 3}
       propertyPath: m_Name
       value: dai_low
@@ -3196,6 +3200,7 @@ MonoBehaviour:
   timerText: {fileID: 138512886}
   timeRemaining: 240
   inputCooldown: 0.5
+  activeYakitoris: []
 --- !u!4 &2121226805
 Transform:
   m_ObjectHideFlags: 0

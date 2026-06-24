@@ -152,7 +152,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 278}
+  m_AnchoredPosition: {x: 0, y: 414}
   m_SizeDelta: {x: 250, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &585014792220195310
@@ -465,10 +465,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b56c182708919e846b33f2a6b2b8059c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 10
-  horizontalRange: 2
-  liftHeight: 1.5
   isSelected: 0
+  moveSpeed: 10
+  minX: -8
+  maxX: 6
+  liftHeight: 1.5
+  yakitoriWidth: 2
 --- !u!1 &7441000569332043607
 GameObject:
   m_ObjectHideFlags: 0
@@ -632,15 +634,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 314f8f12ab1b0474eb74ad2a64341263, type: 3}
       propertyPath: m_LocalScale.x
-      value: 10
+      value: 15
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 314f8f12ab1b0474eb74ad2a64341263, type: 3}
       propertyPath: m_LocalScale.y
-      value: 10
+      value: 15
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 314f8f12ab1b0474eb74ad2a64341263, type: 3}
       propertyPath: m_LocalScale.z
-      value: 10
+      value: 15
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 314f8f12ab1b0474eb74ad2a64341263, type: 3}
       propertyPath: m_LocalPosition.x

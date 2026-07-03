@@ -9,9 +9,11 @@ public class MoneyManager : MonoBehaviour
 
     void Awake()
     {
-        Instance = this;
-        // 保存されているお金を読み込む
-        currentMoney = PlayerPrefs.GetInt("TotalMoney", 0);
+        if (Instance == null) Instance = this;
+
+        // --- 修正ポイント：セーブデータの読み込みをやめる ---
+        // currentMoney = PlayerPrefs.GetInt("TotalMoney", 0); // これを削除
+        currentMoney = 0; // 常に0円からスタート
     }
 
     void Start()
@@ -19,12 +21,14 @@ public class MoneyManager : MonoBehaviour
         UpdateMoneyUI();
     }
 
-    // お金を増やす（報酬）
+    // お金を増やす
     public void AddMoney(int amount)
     {
         currentMoney += amount;
-        PlayerPrefs.SetInt("TotalMoney", currentMoney);
-        PlayerPrefs.Save();
+
+        // PlayerPrefs.SetInt("TotalMoney", currentMoney); // 保存もしない
+        // PlayerPrefs.Save(); // 削除
+
         UpdateMoneyUI();
     }
 
@@ -34,16 +38,24 @@ public class MoneyManager : MonoBehaviour
         if (currentMoney >= amount)
         {
             currentMoney -= amount;
-            PlayerPrefs.SetInt("TotalMoney", currentMoney);
-            PlayerPrefs.Save();
             UpdateMoneyUI();
-            return true; // 購入成功
+            return true;
         }
-        return false; // お金が足りない
+        return false;
     }
 
     void UpdateMoneyUI()
     {
-        if (moneyText != null) moneyText.text = $"所持金: {currentMoney}円";
+        if (moneyText != null)
+        {
+            moneyText.text = $"所持金: {currentMoney}円";
+        }
+    }
+
+    // もしリトライ時に明示的にリセットしたい場合に呼ぶ関数
+    public void ResetMoney()
+    {
+        currentMoney = 0;
+        UpdateMoneyUI();
     }
 }

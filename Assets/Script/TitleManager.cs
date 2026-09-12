@@ -23,4 +23,14 @@ public class TitleManager : MonoBehaviour
     {
         SceneManager.LoadScene(nextSceneName);
     }
+
+    // ★追加：アプリを終了する関数
+    public void QuitGame()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false; // エディタ実行停止
+#else
+        Application.Quit(); // ビルド後のアプリ終了
+#endif
+    }
 }
